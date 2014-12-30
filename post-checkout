@@ -1,0 +1,70 @@
+#!/usr/bin/python
+
+###
+### Simple hook to maintain .classpath files by branch name.
+### 
+
+from subprocess import check_output
+import shutil
+import sys, os
+
+CACHE_DIR = ".eclipse-cache"
+
+def hooksDir():
+	thisFilePath = os.path.realpath(__file__)
+	return os.path.dirname(thisFilePath)
+
+def gitDir(): 
+	return os.path.dirname(hooksDir())
+
+def projectDir():
+	return os.path.dirname(gitDir())
+
+def getBranchName(commitName):
+	return check_output(["git", "name-rev", "--name-only", commitName]).strip()
+
+def getCacheDir():
+	return os.path.join(projectDir(), CACHE_DIR)
+
+def getCacheDirForBranch(branchName):
+	branchCacheDir = os.path.join(getCacheDir(), branchName)
+	if not os.path.isdir(branchCacheDir):
+		os.makedirs(branchCacheDir)
+	return branchCacheDir
+
+def currentClassPathFile():
+	return os.path.join(projectDir(), ".classpath")
+
+def classPathFileForBranch(branchName):
+	branchFile = os.path.join(getCacheDirForBranch(branchName), ".classpath")
+	if os.path.exists(branchFile):
+		return branchFile
+	else: 
+		return False;
+
+def saveCacheToBranch(branchName):
+	src = currentClassPathFile()
+	dest = getCacheDirForBranch(branchName)
+	shutil.copy(src, os.path.join(dest, ".classpath"))
+
+def restoreCacheForBranch(branchName):
+	src = classPathFileForBranch(branchName)
+	if src:
+		shutil.copy(src, os.path.join(projectDir(), ".classpath"))
+		return True
+	else:
+		return False
+
+if __name__ == "__main__":
+	prevHead = sys.argv[1]
+	newHead = sys.argv[2]
+	prevBranch = getBranchName(prevHead)
+	newBranch = getBranchName(newHead)
+
+	if prevBranch != newBranch:
+		print ("moving .classpath to " + getCacheDirForBranch(prevBranch))
+		saveCacheToBranch(prevBranch)
+		if restoreCacheForBranch(newBranch):
+			print ("restored cache for " + newBranch)
+		else:
+			print "you need to regenerate eclipse files."
